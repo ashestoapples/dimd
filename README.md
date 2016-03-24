@@ -13,7 +13,9 @@ I figured I'd make something usefull for myself (and hopefully others) with it.
 
 # TODO:
 Preferred directories
+
 Windows Support
+
 Windows GUI
 
 # Config file syntax:
