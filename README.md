@@ -26,6 +26,7 @@ Comments are made with '!'
 Having 'logDeletes' in the config file will cause the script to wirte a log of which user ran it, and when files were deleted by it
 
 specefy dirs checked by dimd
+
     dirs
     {
         /path/to/imgs
@@ -33,12 +34,14 @@ specefy dirs checked by dimd
     }  
     
 sub directories for dimd to ignore, you MUST include the preceeding path to the sub dir
+
     ignored
     {
         /path/to/imgs/sub
     }  
 
 image formats dimd will recognize
+
     formats
     {
         .jpg
