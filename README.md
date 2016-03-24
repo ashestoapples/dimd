@@ -25,30 +25,22 @@ Comments are made with '!'
 
 Having 'logDeletes' in the config file will cause the script to wirte a log of which user ran it, and when files were deleted by it
 
-'dirs
+specefy dirs checked by dimd
+    dirs
+    {
+        /path/to/imgs
+        /path/to/porn
+    }  
+    
+sub directories for dimd to ignore, you MUST include the preceeding path to the sub dir
+    ignored
+    {
+        /path/to/imgs/sub
+    }  
 
-{
-
-    /path/to/imgs
-  
-    /path/to/porn
-  
-}'  specefy dirs checked by dimd
-
-'ignored
-
-{
-
-    /path/to/imgs/sub
-  
-}'  sub directories for dimd to ignore, you MUST include the preceeding path to the sub dir
-
-'formats
-
-{
-
-    .jpg
-  
-    .png
-  
-}'  image formats dimd will recognize
+image formats dimd will recognize
+    formats
+    {
+        .jpg
+        .png
+    }  
