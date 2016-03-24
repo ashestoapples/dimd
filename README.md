@@ -29,9 +29,9 @@ Having 'logDeletes' in the config file will cause the script to wirte a log of w
 
 {
 
-  /path/to/imgs
+    /path/to/imgs
   
-  /path/to/porn
+    /path/to/porn
   
 }'  specefy dirs checked by dimd
 
@@ -39,7 +39,7 @@ Having 'logDeletes' in the config file will cause the script to wirte a log of w
 
 {
 
-  /path/to/imgs/sub
+    /path/to/imgs/sub
   
 }'  sub directories for dimd to ignore, you MUST include the preceeding path to the sub dir
 
@@ -47,8 +47,8 @@ Having 'logDeletes' in the config file will cause the script to wirte a log of w
 
 {
 
-  .jpg
+    .jpg
   
-  .png
+    .png
   
 }'  image formats dimd will recognize
