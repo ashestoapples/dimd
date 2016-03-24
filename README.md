@@ -1,5 +1,5 @@
 # dimd
-Duplicate IMage Detector
+# Duplicate IMage Detector
 
 This script will find visually similar images in the users image directories (specified in the config file). Dimd will log a md5 hash of each original image in a database file (located in /home/user/.dimd). 
 
@@ -11,12 +11,12 @@ The hashing algorithm is based off of this article: http://blog.iconfinder.com/d
 
 I figured I'd make something usefull for myself (and hopefully others) with it. 
 
-TODO:
+# TODO:
 Preferred directories
 Windows Support
 Windows GUI
 
-Config file syntax:
+# Config file syntax:
 
 Comments are made with '!'
 'large' and 'small' denote wether bigger (higher res) or smaller (lower res) images are preferred by the script
