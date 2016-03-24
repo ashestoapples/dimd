@@ -379,5 +379,3 @@ if __name__ == '__main__':
 	deleteList = dbUpdate(newHashes, attribs)
 
 	purgeDuplicates(deleteList, attribs)
-
-# ,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.
