@@ -11,6 +11,12 @@ The hashing algorithm is based off of this article: http://blog.iconfinder.com/d
 
 I figured I'd make something usefull for myself (and hopefully others) with it. 
 
+# Dependencies
+pillow -- python 3 imaging library
+just install using your preffered method. It can easily be installed from the AUR (Arch User Repository) 
+
+    yaourt python-pillow
+
 # TODO:
 Preferred directories
 
