@@ -332,7 +332,7 @@ def dbUpdate(all_newFiles, attribs):
 							del cdb[keyCDB]
 							toBeDeleted.append(keyCDB)
 							break
-						elif index == 3:
+						elif index == 2:
 							print("Attention, both images are still on disk and have not been added to teh database, they will be picked up again when you run dimd on their directory.")
 						else:
 							print("Something went wrong .. ")
