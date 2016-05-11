@@ -30,12 +30,10 @@ def dbLoad():
 #print the help document, exit script afterwords
 def printHelp():
 	print(""""
-		dimd - "Duplicate" (visually similar) IMage Detector v0.01
+		dimd - Duplicate IMage Detector v0.01
 	author: icey@protonmail.ch
 
 	- A script that detects duplicate images, and can deleted them depending on size -
-	Q: Why "visually similar"?
-	A: In order to compare relative to size, images that are visually similar get confated with eachother
 
 	Format:
 	dimd --options
@@ -44,6 +42,7 @@ def printHelp():
 	-h or --help\tDisplay this message.
 	--init\t\tCheck if .dimd dir exists, generates default config file if missing, moves dimd to the user's path. When using this flag you can specify where dimd will be moved when the script is running
 	-w\t\tWarn before deleting files.
+	-dir=/path/to/dir\tOnly look for dupes i specified directory, does not update database
 	--clear-db\tClear database of all existing entries
 	--rm-db-dir\tClear database entries that are located in a certain directory
 
@@ -169,6 +168,8 @@ def parseArguments(attribs):
 	if len(argv) > 1:
 		place = 1
 		for arg in argv:
+			if arg.startswith("dir="):
+				attribs.append(arg[4:])
 			if arg not in args and "/" not in arg:
 				print("That's not how this is used! pass -h or --help for more info\n")
 				exit(1)
@@ -242,6 +243,15 @@ def getNewFileNames(attribs):
 	#return dict with filenames as keys, but empty values
 	return all_newFiles
 
+def getFileNamesFromDir(fromDir, formats):
+	r = {}
+	for root, dirs, files in os.walk(fromDir):
+		for name in files:
+			for form in formats:
+				if name.endswith(form):
+					r[os.path.join(root, name)] = ""
+	return r
+
 # generate hases for all new images found
 def hashImages(all_newFiles):
 	print("Commcening hash operations on ", len(all_newFiles), "files.")
@@ -259,18 +269,21 @@ def hashImages(all_newFiles):
 					i = i.convert('L').resize((9, 8), Image.ANTIALIAS)
 				except SyntaxError:
 					print("Attention! ---> ", newFile, " is corrupt.")
-					input("Skipping file, press any key to continue.. ")
+					print("Skipping file")
 				except OSError:
 					print("Attention! ---> ", newFile, ", faulty image file.")
-					input("Skipping file, press any key to continue.. ")
+					print("Skipping file")
 				for x in range(8):
 					for y in range(8):
 						try:
 							w.append(i.getpixel((x,y)) > i.getpixel((x+1,y)))
 						except SyntaxError:
 							print("Attention! ---> ", newFile, " is corrupt.")
-							input("Skipping file, press any key to continue.. ")
+							print("Skipping file ")
 							break
+						else:
+							continue
+						break
 
 				if len(w) > 0:
 					w = [int(n) for n in w]
@@ -282,12 +295,20 @@ def hashImages(all_newFiles):
 				fp += 1
 		except OSError:
 			print("Attention! ---> ", newFile, ", faulty image file.")
-			input("Skipping file, press any key to continue.. ")
+			print("Skipping")
 
 	print("Hashing complete\n")
 
 	# returns a dict of filenames (keys) and their hases (values)
 	return all_newFiles
+
+def simpleDelete(hashes):
+	toBeDeleted = []
+	for k in hashes.keys():
+		for l in hashes.keys():
+			if k != l and hashes[k] == hashes[l] and k not in toBeDeleted and l not in toBeDeleted:
+				toBeDeleted.append(l)
+	return toBeDeleted
 
 # update database with new hashes
 def dbUpdate(all_newFiles, attribs):
@@ -332,7 +353,7 @@ def dbUpdate(all_newFiles, attribs):
 							del cdb[keyCDB]
 							toBeDeleted.append(keyCDB)
 							break
-						elif index == 2:
+						elif index == 3:
 							print("Attention, both images are still on disk and have not been added to teh database, they will be picked up again when you run dimd on their directory.")
 						else:
 							print("Something went wrong .. ")
@@ -396,10 +417,12 @@ def purgeDuplicates(toBeDeleted, attribs):
 if __name__ == '__main__':
 	attribs = parseArguments(parseConfigFile(path_conf))
 
-	newHashes = hashImages(getNewFileNames(attribs))
-
-	deleteList = dbUpdate(newHashes, attribs)
-
-	purgeDuplicates(deleteList, attribs)
-
-# ,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.,.-*'*-.
+	if len(attribs) == 7:
+		newHashes = hashImages(getFileNamesFromDir(attribs[6], attribs[1]))
+		deleteList = simpleDelete(newHashes)
+		purgeDuplicates(deleteList, attribs)
+	
+	else:
+		newHashes = hashImages(getNewFileNames(attribs))
+		deleteList = dbUpdate(newHashes, attribs)
+		purgeDuplicates(deleteList, attribs)
