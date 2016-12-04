@@ -13,10 +13,13 @@ I figured I'd make something usefull for myself (and hopefully others) with it.
 
 # Dependencies
 pillow -- python 3 imaging library
+
 sqlite3
+
 pyqt5
 
 Windows binaries can be found easily on the internet.
+
 For linux just use your package manager for pyqt5 and sqlite3. PILLOW can be obtained from the AUR for arch users.
 
 # TODO:
