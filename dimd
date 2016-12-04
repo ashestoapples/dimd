@@ -1,0 +1,675 @@
+#!/usr/bin/env python
+
+#dimd v0.1
+
+from PIL import Image, ImageFile
+import os, hashlib, sys
+from PyQt5.QtWidgets import QApplication, QWidget, QToolTip, QPushButton, QLineEdit, QTextEdit, QGridLayout, QLabel, QFileDialog, QAction, QFileDialog, QMainWindow, QHBoxLayout, QVBoxLayout, QMessageBox, QDialog, QCheckBox, QScrollArea, QProgressBar
+from PyQt5.QtGui import QFont, QIcon, QPixmap
+from PyQt5.QtCore import QCoreApplication
+import sqlite3
+
+MSWindows = True
+
+#PILlow fuckery
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+#directories = ["C:\\Users\\icey\\Dropbox\\dimd\\img"]
+formats = [".png", ".jpg", ".jpeg", ".bmp"]
+
+def flipSlashes(word):
+	return word.replace('\\', '/')
+
+
+class Operation():
+	"""decorator for windows class, contains img file processing operations, requires a file list on instantiation"""
+	directories = []
+	ignore = []
+	formats = [".png", ".jpg", ".jpeg", ".bmp"]
+	database = None
+	def __init__(self, dirs, ign, db):
+		self.directories = dirs
+		self.ignore = ign
+		if (db):
+			self.database = db
+
+	def paths(self):
+		""" get full paths of all image files in specifeid directories"""
+		" return dict with path to image as key and empty entry, to be used for hash"
+		images = {}
+		
+		# add paths and coorespnding hashes to database if applicable
+		if (self.database):
+			self.database.read()
+			t = self.database.fetch()
+			while (t):
+				images[str(t[0])] = str(t[1])
+				t = self.database.fetch()
+				print(t)
+
+		# get all img files in specified directories while ignoring irgnored directories
+		for folder in self.directories:
+			for root, dirs, files in os.walk(folder):
+				for name in files:
+					pathToImg = os.path.join(root, name)
+					print(pathToImg)
+					if MSWindows: pathToImg = flipSlashes(pathToImg)
+					if not self.database or not self.database.hasPath(pathToImg):
+						# wtf was I thinking, this is retarded
+						if True not in [pathToImg.startswith(i) for i in self.ignore]:
+							if pathToImg not in images.keys() and True in [pathToImg.endswith(i) for i in formats]:
+								images[pathToImg] = ""
+		
+		return images
+
+	def hashes(self, images):
+		""" get comparative md5 hashes given a list of paths to image files"""
+		" returns images dict wit hvalues filled in, md5 hash"
+		#preserve READ ONLY to images list
+		read = images
+		count = 1
+		totalImages = len(list(read.keys()))
+		ldWin = loadingWindow(totalImages)
+
+		for img in read.keys():
+			# handle non image file swith image file extension
+			if read[img] == "":
+				print("Generating hash for: ", read[img])
+				try:
+					with Image.open(img) as i:
+						w = []
+						#greyscale and antialias image, hanle corrupt image files
+						try:
+							i = i.convert('L').resize((9,8), Image.ANTIALIAS)
+						except SyntaxError:
+							print(img, " is corrupt.")
+							break
+						except OSError:
+							print(img, " - faulty image file.")
+							break
+						# generates an 8x8 gri9 of bool values by comparing the pixel to th eright of the current pixel
+						# handling for corrupt images
+						for x in range(8):
+							for y in range(8):
+								try:
+									w.append(i.getpixel((x,y)) > i.getpixel((x+1,y)))
+								except SyntaxError:
+									print(img, " is corrupt.")
+								else:
+									continue
+								break
+						# convert bool array to int array
+						if len(w) > 0:
+							w = [int(n) for n in w]
+							ldWin.progress(count)
+							print(count, " / ", totalImages)
+							# generate md5 hash -- string
+							w = hashlib.md5(str(w).encode('utf-8')).hexdigest()
+
+						images[img] = str(w)
+				except OSError:
+					print(img, " faulty  image file")
+				count += 1
+
+		# add any newly read paths & hashes to the sql database	
+		if (self.database):			
+			for key in images.keys():
+				#print(self.database.hasPath(images[key]))
+				if not self.database.hasPath(images[key]):
+					self.database.add(key, images[key])
+		return images
+
+	def eliminateDupes(self, data):
+		""" detect duplicate values given a dictionary """
+		"returns a dictionary wit h the value as a key, and a list of the the keys from the original dict as the value"
+		removeList = {}
+		for key1 in data.keys():
+			for key2 in data.keys():
+				# ensure that we are not comaring the same file and that the values are identical
+				if key1 != key2 and data[key1] == data[key2]:
+					# make sure that the new key isn't already in the remove list
+					if data[key1] not in removeList.keys():
+						removeList[data[key1]] = []
+					# make sure the new value isn't already in the remove list
+					if str(key1) not in removeList[data[key1]]:
+						removeList[data[key1]].append(str(key1))
+		
+		# # if the key is in the remolve list, remove it from the sql db
+		# if self.database:
+		# 	for h in removeList.keys():
+		# 		#print(h)
+		# 		if self.database.isInDataBase(h):
+		# 			self.database.delete(h)
+		
+		return removeList
+
+class loadingWindow(QDialog):
+	""" generates a loading window while the hashes are being generated  """
+	imgCount = 0
+
+	def __init__(self, ic): 
+		self.imgCount = ic
+		super().__init__()
+		self.initUI()
+
+	def initUI(self):
+		self.setWindowTitle("dimd -- running")
+		self.setGeometry(300, 100, 300, 50)
+		self.totalFilesDisplay = QLabel("Processing " + str(self.imgCount) + " images.")
+		self.loadingBar = QProgressBar(self)
+		self.loadingBar.setGeometry(200, 80, 250, 20)
+
+		vbox = QVBoxLayout()
+		vbox.addStretch()
+		vbox.addWidget(self.totalFilesDisplay)
+		vbox.addWidget(self.loadingBar)
+		self.setLayout(vbox)
+
+		self.show()
+
+	def progress(self, count):
+		QApplication.processEvents()
+		self.loadingBar.setValue((count/self.imgCount) * 100)
+
+
+def isSubDirectory(dir1, dir2):
+    """ used to determain if a string contains the other, and vise versa"""
+    if dir1 == dir2: 
+        return 0 #if the two string are the same
+	
+    d1 = dir1.split('/')
+    d2 = dir2.split('/')
+
+    if len(dir1) < len(dir2):
+        if dir2.startswith(dir1): #and d1[-1] == d2[-1]:
+            return 1 # if dir 1 is contained in dir two 
+    elif len(dir1) > len(dir2):
+        if dir1.startswith(dir2): #and d1[-1] == d2[-1]:
+            return 2 
+
+    return -1 # if the two are not related
+
+class DataBaseHandler():
+	""" abstraction for handling database functions  """
+	db = None
+	c = None
+
+	# sql statements
+	__SQL_INIT = """ CREATE TABLE IMAGES (PATH TEXT, HASH VARCHAR(32));"""
+	__SQL_ADD = """ INSERT INTO IMAGES VALUES ('%s', '%s'); """
+	__SQL_READ = """ SELECT * FROM IMAGES;"""
+	__SQL_DROP = """ DROP TABLE IMAGES;"""
+	__SQL_HASTABLE = """ SELECT name FROM sqlite_master WHERE type='table' AND name='IMAGES';"""
+	__SQL_ISINDB = """ SELECT PATH FROM IMAGES WHERE HASH='%s';"""
+	__SQL_DELETE = """ DELETE FROM IMAGES WHERE HASH='%s'; """
+	
+	def __init__(self, path):
+		self.db = sqlite3.connect(path)
+		self.c = self.db.cursor()
+
+	def read(self):
+		self.c.execute(self.__SQL_READ)
+
+	def fetch(self):
+		return self.c.fetchone()
+	
+	def init(self):
+		self.c.execute(self.__SQL_INIT)
+
+	def add(self, image, img_hash):
+		print("Adding ", image, " to databse")
+		self.c.execute(self.__SQL_ADD %(image, img_hash))
+
+	def drop(self):
+		self.c.execute(self.__SQL_DROP)
+	
+	def hasImageTable(self):
+		self.c.execute(self.__SQL_HASTABLE)
+		if self.c.fetchone():
+			return True
+		return False
+
+	def isInDataBase(self, img_hash):
+		self.c.execute(self.__SQL_ISINDB %img_hash)
+		if self.c.fetchone():
+			return True
+		return False
+
+	def hasPath(self, path):
+		self.c.execute(""" SELECT PATH FROM IMAGES WHERE PATH='%s';""" %path)
+		if self.c.fetchone():
+			return True
+		return False
+
+	def delete(self, img_hash):
+		self.c.execute(""" SELECT PATH FROM IMAGES WHERE HASH='%s';""" %img_hash)
+		print("deleting from database -- ", self.c.fetchone())
+		self.c.execute(self.__SQL_DELETE %img_hash)
+
+	def commit(self):
+		self.db.commit()
+	
+	def close(self):
+		self.db.close()
+
+"""
+ -- GUI IMPLEMENTATION --
+    Each window in the UI stack was an accompanying "widget table" class on top of it. The table is used to positon the widgets, which cannot be done on a main window. 
+"""
+
+class ResultsWindow(QDialog):
+	""" This is the winodw containing all the possible files for deletion"""
+	mainWindow = ''
+	dlist = []
+	dupeList = {}
+	database = None
+	def __init__(self, w,dupes, db):
+		super().__init__()
+		mainWindow = w
+		# applying the widget table to the window
+		self.table = ResultsWidget(dupes)
+		if db:
+			self.database = db
+			# no need to preserve the dupe list if there isn't a databse open
+			self.dupeList = dupes
+
+		self.initUI()
+
+	def initUI(self):
+		self.scrlArea = QScrollArea()
+		self.scrlArea.setWidget(self.table)
+		self.scrlArea.setHorizontalScrollBarPolicy(1)
+		self.setGeometry(500, 300, 550, 300)
+		self.setWindowTitle('results')
+		hbox = QHBoxLayout()
+		hbox.addStretch(1)
+		vbox = QVBoxLayout()
+		vbox.addStretch(1)
+		vbox.addWidget(self.scrlArea)
+		delBtn = QPushButton("Delete Selected Files")
+		delBtn.clicked.connect(self.delete) ####
+		vbox.addWidget(delBtn)
+		vbox.addLayout(hbox)
+		self.setLayout(vbox)
+
+	def delete(self):
+		warning = QMessageBox()
+		warning.setText("You are about to delete te following files perminently\nIs this ok?")
+		warning.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+		warning.setDefaultButton(QMessageBox.Yes)
+		r = warning.exec_()
+		if (r == QMessageBox.Yes):
+			for check in self.table.returnChecks():
+				if check.returnState() == 2:
+					filename = check.returnData()
+					check.update()
+					os.remove(filename)
+					if self.database:
+						self.database.c.execute(""" DELETE FROM IMAGES WHERE PATH='%s';""" %filename)
+					print(filename, " -- deleted")
+			msg = QMessageBox.information(self, 'Message', 'Operation Complete', QMessageBox.Ok, QMessageBox.NoButton)
+			# if self.database:
+			# 	for key in self.dupeList:
+			# 		for path in self.dupeList[key]:
+			# 			if path not in self.dlist:
+			# 				print("Adding ", path, " with key: ", key, " to database.")
+			# 				self.database.add(path, str(key))
+
+			self.dlist = []
+			self.table.checks = []
+			self.close()
+
+		else:
+			self.dlist = []
+
+class IncludedCheck(QCheckBox):
+	""" QCheckbox object with a string attached to it """
+	strData = ""
+	Istate = 0
+	def __init__(self, imageFilePath):
+		super().__init__(imageFilePath)
+		self.strData = imageFilePath
+		self.toggled.connect(self.update)
+
+	def returnData(self):
+		return self.strData
+	
+	def update(self):
+		if self.Istate == 0:
+			self.Istate = 2
+		else:
+			self.Istate = 0
+
+	def returnState(self):
+		return self.Istate
+
+class ViewButton(QPushButton):
+	""" QPushButton object containing information about an image"""
+	img_path = None
+	x = y = None
+	parent = None
+	def __init__(self, path, text, rw):
+		super().__init__(text)
+		self.img_path = path
+		with Image.open(self.img_path) as i:
+			self.x, self.y = i.size
+		self.parent = rw
+		self.clicked.connect(lambda: self.parent.veiwingWindow(self.x, self.y, self.img_path))
+
+class ResultsWidget(QWidget):
+	""" Widget table for the results window"""
+	mainWindow = ''
+	checks = []
+	del_list = []
+	img_viewer = None # this will be the current open window when a VeiwButtton is pressed
+	def __init__(self, dupes):
+		super().__init__()
+		self.initUI(dupes)
+
+	def initUI(self, dupes):
+		hbox = QHBoxLayout()
+		hbox.addStretch(1)
+		vbox = QVBoxLayout()
+		vbox.addStretch(1)
+
+		titleLable = QLabel("Please select with files you want to delete for each hash.\nChecking all boxes for a file means that all copies of the image will be deleted.", self)
+		vbox.addWidget(titleLable)
+
+		checkIndex = 0
+		for k in dupes.keys():
+			# labels for image hasese and a seperator
+			vbox.addWidget(QLabel("─"*100, self))
+			vbox.addWidget(QLabel("Images for hash: " + str(k), self))
+			for x in range(len(dupes[k])):
+				# generate a new IncludedCheck object per file
+				new_check = IncludedCheck(dupes[k][x])
+				self.checks.append(new_check)
+				vbox.addWidget(new_check)
+				# adding the horizontal element containing the image size label and the view  button
+				tmp_hbox = QHBoxLayout()
+				#tmp_hbox.addStretch(0)
+				h = v = 0
+				with Image.open(dupes[k][x]) as i:
+					h, v = i.size
+				tmp_lable = QLabel(" └─ " + str(h) +"x"+ str(v) +" px")
+				tmp_button = ViewButton(dupes[k][x], "View", self)
+				
+				# applying the horizontal element
+				tmp_hbox.addWidget(tmp_lable)
+				tmp_hbox.addWidget(tmp_button)
+				tmp_hbox.addWidget(QLabel("\t"*16))
+				vbox.addLayout(tmp_hbox)
+				checkIndex += 1
+
+		vbox.addLayout(hbox)
+		self.setLayout(vbox)
+
+	def returnChecks(self):
+		""" return the list of IncludedChecks """
+		return self.checks
+		
+	def editList(self, check):
+		""" look in the list of checks to see which one is checked """
+		s = check.returnData()
+		if s not in del_list:
+			del_list.append(s)
+		else:
+			for i in range(len(del_list)):
+				if (del_list[i] == s):
+					del(del_list[i])
+					break
+
+	def veiwingWindow(self, x, y, path):
+		""" generate a window for viewing an image """
+		self.img_viewer = QDialog()
+		self.img_viewer.setGeometry(500, 300, x + 20, y + 20)
+		frame = QLabel()
+		frame.setPixmap(QPixmap(path))
+		vbox = QVBoxLayout()
+		vbox.addWidget(frame)
+		self.img_viewer.setLayout(vbox)
+		self.img_viewer.exec_()
+		self.img_viewer = None
+
+class WidgetTable(QWidget):
+	"""widget container user to manage widget layout"""
+	def __init__(self):
+		super().__init__()
+		self.initUI()
+
+	def initUI(self):
+		# labels for text displays
+		self.folderSelectionLabel = QLabel("Selected Search Directories:\nAll subdirecties not in the ignored sub sirs box will be included", self)
+		self.ignoredSubFolderLabel = QLabel("Ignored Sub Directories", self)
+		
+		# displays for directory selection
+		self.folderSelectionDisplay = QTextEdit()
+		self.folderSelectionDisplay.setReadOnly(True)
+		self.ignodedSubFolderDisplay = QTextEdit()
+		self.ignodedSubFolderDisplay.setReadOnly(True)
+
+		self.startBtn = QPushButton("Start Operation")
+		self.dbLabel = QLabel("Not using image database")
+
+		vbox = QVBoxLayout()
+		vbox.addStretch(10)
+		vbox.addWidget(self.folderSelectionLabel)
+		vbox.addWidget(self.folderSelectionDisplay)
+		vbox.addWidget(self.ignoredSubFolderLabel)
+		vbox.addWidget(self.ignodedSubFolderDisplay)
+		vbox.addWidget(self.dbLabel)
+		vbox.addWidget(self.startBtn)
+
+
+		self.setLayout(vbox)
+
+class Window(QMainWindow):
+	"""QT main window class -- directory/ignored selection screen"""
+	# select directeid to search through
+	dir_selection = []
+	ignored = []
+	hasDataBase = False
+	dataBasePath = None
+
+	def __init__(self):
+		super().__init__()
+		self.initUI()
+
+	def initUI(self):
+
+		# trigger the open folder dialog
+		openFolder = QAction('Open', self)
+		openFolder.setShortcut('Ctrl+O')
+		openFolder.setStatusTip('Add a folder')
+		openFolder.triggered.connect(self.folderDialog)
+
+		# clear the folder list
+		clearFolders = QAction('Clear List', self)
+		clearFolders.setShortcut('Ctrl+D')
+		clearFolders.setStatusTip('Clear Folder List')
+		clearFolders.triggered.connect(self.clearSelection)
+
+		# add ignored sub dir
+		addSubDir = QAction('Ignore', self)
+		addSubDir.setShortcut('Ctrl+X')
+		addSubDir.triggered.connect(self.addSubDirDialog)
+
+		# add remove ignore
+		unignoreAll = QAction('Unignore All', self)
+		unignoreAll.setShortcut('Ctrl+U')
+		unignoreAll.triggered.connect(self.unignoreAll)
+
+		# add database options
+		useDatabase = QAction(QIcon('null.png'), 'Use Database', self)
+		useDatabase.setShortcut('Ctrl+B')
+		useDatabase.setCheckable(True)
+		useDatabase.toggled.connect(self.dbFlag)
+		newDataBase = QAction('New Database', self)
+		newDataBase.setShortcut('Ctrl+N')
+		newDataBase.triggered.connect(self.newDB)
+
+		# setup the menubar
+		menubar = self.menuBar()
+		fileMenu = menubar.addMenu('&File')
+		fileMenu.addAction(openFolder)
+		fileMenu.addAction(clearFolders)
+		fileMenu.addAction(addSubDir)
+		fileMenu.addAction(unignoreAll)
+		databaseMenu = menubar.addMenu('&Database')
+		databaseMenu.addAction(useDatabase)
+		databaseMenu.addAction(newDataBase)
+
+		# load the widget table
+		self.table = WidgetTable()
+		self.setCentralWidget(self.table)
+
+		# configures start button
+		self.table.startBtn.clicked.connect(self.fileOperation)
+
+		self.setGeometry(300, 300, 350, 300)
+		self.setWindowTitle('dimd - duplicate image editor')
+		self.show()
+
+	def dbFlag(self):
+		""" flip the hasDataBase flag and change the label text """
+		if self.hasDataBase:
+			self.hasDataBase = False
+			self.table.dbLabel.setText("Not using image database")
+			self.dataBasePath = None
+		else:
+			s = QFileDialog.getOpenFileName(self, 'Select Database File', '~/')[0]
+			if (s != ''):
+				self.table.dbLabel.setText("Using image databse: " + s)	
+				self.hasDataBase = True
+				self.dataBasePath = s
+
+	def newDB(self):
+		""" Creates a new sql database file, selects it for editing """
+		s = QFileDialog.getSaveFileName(self, 'save new db', '/', '*.db')[0]
+		if s == '': return
+		if self.hasDataBase == False:
+			self.hasDataBase = True
+		with open(s, 'w') as fp: fp.close()
+		self.table.dbLabel.setText("Using image databse: " + s)
+		self.dataBasePath = s
+		db = DataBaseHandler(s)
+		db.init()
+		db.commit()
+
+	def folderDialog(self):
+		print(self.dir_selection)
+		"""Promps user to select a folder which will be earched through for images
+		determines if selected folder is valid"""
+		# launch folder selection winow
+		dname = QFileDialog.getExistingDirectory(self, 'Add Folder', '/home/icey/Dropbox/dimd')
+		if dname == '':
+			return
+		dname = ''.join(dname)
+
+		# determine if directory already exists..
+		if (dname not in self.dir_selection):
+			for par in self.dir_selection:
+				result = isSubDirectory(dname, par)
+				# ..is a parent directory fo and selected entry ..
+				if (result == 1):
+					d = 0
+					while True:
+						try:
+							if self.dir_selection[d].startswith(dname):
+								del(self.dir_selection[d])
+							else:
+								d + 1
+						except IndexError:
+							break
+					msg = QMessageBox.information(self, 'Message', 'Replaced sub directory with parent directory', QMessageBox.Ok, QMessageBox.NoButton)
+					break
+				# ..or is a subdirectory of an selected one
+				elif (result == 2):
+					msg = QMessageBox.information(self, 'Message', 'Child directories are already included if parent is included', QMessageBox.Ok, QMessageBox.NoButton)
+					return
+
+				if dname == par:
+					msg = QMessageBox.information(self, 'Message', 'Directory is already included', QMessageBox.Ok, QMessageBox.NoButton)
+					return
+
+			# add name to selected ri list and update the display
+			if MSWindows: flipSlashes(dname)
+			self.dir_selection.append(dname)
+			self.table.folderSelectionDisplay.setText('\n'.join(self.dir_selection))
+		else:
+			pass
+
+	def addSubDirDialog(self):
+		"""promps user to add a subdir of a parent dir to ignore in the Operation
+		checks if specified dir is a sub dir of a selected parent"""
+		# launch folder interface
+		dname = QFileDialog.getExistingDirectory(self, 'Add Folder', '/home/icey/Dropbox/dimd')
+		str(dname)
+
+		# determine if specified dir is a sub dir of a search dir
+		if (dname not in self.ignored):
+			for par in self.dir_selection:
+				result = isSubDirectory(dname, par)
+				# print(result)
+				if result == 2:
+					self.ignored.append(dname)
+					self.table.ignodedSubFolderDisplay.setText('\n'.join(self.ignored))
+					return
+		msg = QMessageBox.information(self, 'Message', 'Specified sub dir is not a sub directory of a Selected directory', QMessageBox.Ok, QMessageBox.NoButton)
+
+
+	def clearSelection(self):
+		""" empties both the directory selection and the ignored selection """
+		self.dir_selection = []
+		self.table.folderSelectionDisplay.setText('')
+		self.unignoreAll()
+
+	def unignoreAll(self):
+		""" empties the igrnoed selection """
+		self.ignored = []
+		self.table.ignodedSubFolderDisplay.setText('')
+
+	def fileOperation(self):
+		""" started processing the files selecte """
+		db = op = None
+		pathsAndHashes = None
+		if self.hasDataBase:
+			db = DataBaseHandler(self.dataBasePath)
+			if not db.hasImageTable():
+				db.init()
+			op = Operation(self.dir_selection, self.ignored, db)
+
+		else:	
+			op = Operation(self.dir_selection, self.ignored, None)
+
+		pathsAndHashes = op.hashes(op.paths())
+		dupes = op.eliminateDupes(pathsAndHashes)
+		# incase there are no duplicate images
+		if len(dupes) == 0:
+			if self.hasDataBase:
+				for key in pathsAndHashes.keys():
+					db.add(str(key), pathsAndHashes[key])
+			QMessageBox.information(self, 'Message', 'No Duplicate Images Found', QMessageBox.Ok, QMessageBox.NoButton)
+		else:
+			#generate the window wher eyou choose which files to delete
+			r = None
+			if self.hasDataBase:
+				r = ResultsWindow(self, dupes, db)
+			else:
+				r = ResultsWindow(self, dupes, None)
+
+			r.exec_()
+			r = 0
+			if self.hasDataBase:
+				db.commit()
+				db.close()
+		self.unignoreAll()
+		self.clearSelection()
+		
+
+# main
+if __name__ == '__main__':
+	app = QApplication(sys.argv)
+	ex = Window()
+
+	sys.exit(app.exec_())
