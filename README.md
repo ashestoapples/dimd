@@ -1,55 +1,24 @@
-# dimd
+# dimd - v0.1
 # Duplicate IMage Detector
 
-This script will find visually similar images in the users image directories (specified in the config file). Dimd will log a md5 hash of each original image in a database file (located in /home/user/.dimd). 
-
-Make the script usable first (chmod +x dimd) then when you first run this script pass "dimd --init" to create the .dimd folder in your home directory and generate the default config file. Put the dimd file in your path for easy execution.
-
-Pass '-h' or '--help' for a summary of the arguments
+Qt5 GUI fronted visually similar image finder with sqlite  database support. The current supported image formats are PNG, JPG, JPEG, and BMP. Both Windows and Linux compatible.
 
 The hashing algorithm is based off of this article: http://blog.iconfinder.com/detecting-duplicate-images-using-python/
 
 I figured I'd make something usefull for myself (and hopefully others) with it. 
 
+# Screenshots
+![alt tag](http://i.imgur.com/HdEPvQU.png)
+![alt tag](http://i.imgur.com/vphiTh4.png)
+
 # Dependencies
 pillow -- python 3 imaging library
-just install using your preffered method. It can easily be installed from the AUR (Arch User Repository) 
+sqlite3
+pyqt5
 
-    yaourt python-pillow
+Windwos binaries can be found easily on the internet.
+For linux just use your package manager for pyqt5 and sqlite3. PILLOW can be obtained from the AUR for arch users.
 
 # TODO:
 Preferred directories
-
-Windows Support
-
-Windows GUI
-
-# Config file syntax:
-
-Comments are made with '!'
-'large' and 'small' denote wether bigger (higher res) or smaller (lower res) images are preferred by the script
-
-Having 'logDeletes' in the config file will cause the script to wirte a log of which user ran it, and when files were deleted by it
-
-specefy dirs checked by dimd
-
-    dirs
-    {
-        /path/to/imgs
-        /path/to/porn
-    }  
-    
-sub directories for dimd to ignore, you MUST include the preceeding path to the sub dir
-
-    ignored
-    {
-        /path/to/imgs/sub
-    }  
-
-image formats dimd will recognize
-
-    formats
-    {
-        .jpg
-        .png
-    }  
+Autoselect by size
