@@ -9,7 +9,7 @@ from PyQt5.QtGui import QFont, QIcon, QPixmap
 from PyQt5.QtCore import QCoreApplication
 import sqlite3
 
-MSWindows = True
+#MSWindows = True
 
 #PILlow fuckery
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -507,6 +507,28 @@ class Window(QMainWindow):
 		newDataBase = QAction('New Database', self)
 		newDataBase.setShortcut('Ctrl+N')
 		newDataBase.triggered.connect(self.newDB)
+		
+		# add supported file selection
+		jpg = QAction(QIcon('null.png'), 'jpg', self)
+		jpg.triggered.connect(lambda: self.updateFileFormats("jpg"))
+		jpg.setCheckable(True)
+		jpg.setChecked(True)
+
+		jpeg = QAction(QIcon('null.png'), 'jpeg', self)
+		jpeg.triggered.connect(lambda: self.updateFileFormats("jpeg"))
+		jpeg.setCheckable(True)
+		jpeg.setChecked(True)
+
+		png = QAction(QIcon('null.png'), 'png', self)
+		png.triggered.connect(lambda: self.updateFileFormats("png"))
+		png.setCheckable(True)
+		png.setChecked(True)
+
+		bmp = QAction(QIcon('null.png'), 'bmp', self)
+		bmp.triggered.connect(lambda: self.updateFileFormats("bmp"))
+		bmp.setCheckable(True)
+		bmp.setChecked(True)
+		forms = [jpg, jpeg, png, bmp]
 
 		# setup the menubar
 		menubar = self.menuBar()
@@ -518,6 +540,9 @@ class Window(QMainWindow):
 		databaseMenu = menubar.addMenu('&Database')
 		databaseMenu.addAction(useDatabase)
 		databaseMenu.addAction(newDataBase)
+		formatMenu = menubar.addMenu('&Formats')
+		for form in forms:
+			formatMenu.addAction(form)
 
 		# load the widget table
 		self.table = WidgetTable()
@@ -628,6 +653,15 @@ class Window(QMainWindow):
 		""" empties the igrnoed selection """
 		self.ignored = []
 		self.table.ignodedSubFolderDisplay.setText('')
+
+	def updateFileFormats(self, form):
+		""" change the file formats that dimd looks for """
+		for i in range(len(formats)):
+			if formats[i] == form:
+				formats.pop(i)
+				return
+		formats.append(form)
+		return
 
 	def fileOperation(self):
 		""" started processing the files selecte """
