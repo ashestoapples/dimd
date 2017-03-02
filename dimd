@@ -9,14 +9,14 @@ from PyQt5.QtGui import QFont, QIcon, QPixmap
 from PyQt5.QtCore import QCoreApplication
 import sqlite3
 
-#MSWindows = True
+MSWindows = False
 
 #PILlow fuckery
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 #directories = ["C:\\Users\\icey\\Dropbox\\dimd\\img"]
-formats = [".png", ".jpg", ".jpeg", ".bmp"]
-
+#formats = [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp"]
+formats = []
 def flipSlashes(word):
 	return word.replace('\\', '/')
 
@@ -25,7 +25,8 @@ class Operation():
 	"""decorator for windows class, contains img file processing operations, requires a file list on instantiation"""
 	directories = []
 	ignore = []
-	formats = [".png", ".jpg", ".jpeg", ".bmp"]
+
+	#formats = [".png", ".jpg", ".jpeg", ".bmp"]
 	database = None
 	def __init__(self, dirs, ign, db):
 		self.directories = dirs
@@ -38,6 +39,7 @@ class Operation():
 		" return dict with path to image as key and empty entry, to be used for hash"
 		images = {}
 		
+		print(formats)
 		# add paths and coorespnding hashes to database if applicable
 		if (self.database):
 			self.database.read()
@@ -509,26 +511,36 @@ class Window(QMainWindow):
 		newDataBase.triggered.connect(self.newDB)
 		
 		# add supported file selection
-		jpg = QAction(QIcon('null.png'), 'jpg', self)
-		jpg.triggered.connect(lambda: self.updateFileFormats("jpg"))
+		jpg = QAction(QIcon('null.png'), '.jpg', self)
+		jpg.toggled.connect(lambda: self.updateFileFormats(".jpg"))
 		jpg.setCheckable(True)
 		jpg.setChecked(True)
 
-		jpeg = QAction(QIcon('null.png'), 'jpeg', self)
-		jpeg.triggered.connect(lambda: self.updateFileFormats("jpeg"))
+		jpeg = QAction(QIcon('null.png'), '.jpeg', self)
+		jpeg.toggled.connect(lambda: self.updateFileFormats(".jpeg"))
 		jpeg.setCheckable(True)
 		jpeg.setChecked(True)
 
-		png = QAction(QIcon('null.png'), 'png', self)
-		png.triggered.connect(lambda: self.updateFileFormats("png"))
+		png = QAction(QIcon('null.png'), '.png', self)
+		png.toggled.connect(lambda: self.updateFileFormats(".png"))
 		png.setCheckable(True)
 		png.setChecked(True)
 
-		bmp = QAction(QIcon('null.png'), 'bmp', self)
-		bmp.triggered.connect(lambda: self.updateFileFormats("bmp"))
+		bmp = QAction(QIcon('null.png'), '.bmp', self)
+		bmp.toggled.connect(lambda: self.updateFileFormats(".bmp"))
 		bmp.setCheckable(True)
 		bmp.setChecked(True)
-		forms = [jpg, jpeg, png, bmp]
+		
+		tiff = QAction(QIcon('null.png'), '.tiff', self)
+		tiff.toggled.connect(lambda: self.updateFileFormats(".tiff"))
+		tiff.setCheckable(True)
+		tiff.setChecked(True)
+
+		webp = QAction(QIcon('null.png'), '.webp', self)
+		webp.toggled.connect(lambda: self.updateFileFormats(".webp"))
+		webp.setCheckable(True)
+		webp.setChecked(True)
+		forms = [jpg, jpeg, png, bmp, tiff, webp]
 
 		# setup the menubar
 		menubar = self.menuBar()
@@ -658,7 +670,7 @@ class Window(QMainWindow):
 		""" change the file formats that dimd looks for """
 		for i in range(len(formats)):
 			if formats[i] == form:
-				formats.pop(i)
+				print(formats.pop(i))
 				return
 		formats.append(form)
 		return
